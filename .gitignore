@@ -1,3 +1,49 @@
-.zig-cache/
+# Binarios generados por zig build
 zig-out/
+zig-cache/
+build/
+
+# Si usas zig build-exe, zig build-lib o comandos directos
+*.exe
+*.dll
+*.so
+*.dylib
+*.pdb
+*.obj
 *.o
+
+# Carpeta donde guardas el ejecutable si haces zig build run o similar
+bin/
+out/
+
+# Cache global de Zig (normalmente está en ~ pero a veces se pone local)
+.zig-cache/
+.zig-cache/
+
+# Archivos de log o temporales
+*.log
+*.tmp
+*.temp
+
+# Documentación generada (si usas zig build docs o zig doc)
+doc/
+docs/
+html/
+
+# Si usas Zig como package manager (zig fetch + zig build)
+.zig-mod/       # carpeta del package manager experimental
+deps/           # algunos prefieren poner dependencias aquí
+
+# IDEs y editores comunes
+.vscode/
+.idea/
+*.code-workspace
+
+# macOS
+.DS_Store
+
+# Linux
+*~
+
+# Windows
+Thumbs.db
