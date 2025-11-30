@@ -98,9 +98,50 @@ const Player = struct {
     }
 };
 
+const Bullet = struct {
+    position_x: f32,
+    position_y: f32,
+    width: f32,
+    height: f32,
+    speed: f32,
+    active: bool,
+
+    pub fn init(position_x: f32, position_y: f32, width: f32, height: f32) @This() {
+        return .{
+            .position_x = position_x,
+            .position_y = position_y,
+            .width = width,
+            .height = height,
+            .speed = 10.0,
+            // Bullets start inactive.
+            // Also: we set the speed at 10, so they should be faster than the player.
+            .active = false,
+        };
+    }
+
+    pub fn update(self: *@This()) void {
+        if (self.active) {
+            // Vamos hacia arriba ...
+            self.position_y -= self.speed;
+            if (self.position_y < 0) {
+                self.active = false;
+            }
+        }
+    }
+
+    pub fn draw(self: @This()) void {
+        if (self.active) {
+            rl.drawRectangle(@intFromFloat(self.position_x), @intFromFloat(self.position_y), @intFromFloat(self.width), @intFromFloat(self.height), rl.Color.red);
+        }
+    }
+};
+
 pub fn main() void {
     const screenWidth: comptime_int = 800;
     const screenHeight: comptime_int = 600;
+    const maxBullets = 10;
+    const bulletWidth = 4.0;
+    const bulletHeight = 10.0;
 
     rl.initWindow(screenWidth, screenHeight, "Zig Invaders");
 
@@ -116,6 +157,11 @@ pub fn main() void {
         playerHeight,
     );
 
+    var bullets: [maxBullets]Bullet = undefined;
+    for (&bullets) |*bullet| {
+        bullet.* = Bullet.init(0, 0, bulletWidth, bulletHeight);
+    }
+
     // 60 frames per second
     rl.setTargetFPS(60);
 
@@ -128,7 +174,28 @@ pub fn main() void {
         rl.clearBackground(rl.Color.black);
 
         player.update();
+        if (rl.isKeyPressed(rl.KeyboardKey.space)) {
+            for (&bullets) |*bullet| {
+                if (!bullet.active) {
+                    bullet.position_x = player.position_x + (player.width / 2) - (bullet.width / 2);
+                    bullet.position_y = player.position_y;
+                    bullet.active = true;
+
+                    break;
+                }
+            }
+        }
+
+        // Update logic
+        for (&bullets) |*bullet| {
+            bullet.update();
+        }
+
         player.draw();
+        // Draw logic
+        for (&bullets) |*bullet| {
+            bullet.draw();
+        }
 
         rl.drawText("Zig Invaders", 300, 250, 40, rl.Color.green);
     }
