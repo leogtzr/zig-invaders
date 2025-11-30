@@ -75,6 +75,12 @@ const Player = struct {
             // If we move to the right ...
             self.position_x -= self.speed;
         }
+        if (self.position_x < 0) {
+            self.position_x = 0;
+        }
+        if (self.position_x + self.width > @as(f32, @floatFromInt(rl.getScreenWidth()))) {
+            self.position_x = @as(f32, @floatFromInt(rl.getScreenWidth())) - self.width;
+        }
     }
 
     // Just reading:
