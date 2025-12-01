@@ -136,12 +136,48 @@ const Bullet = struct {
     }
 };
 
+const Invader = struct {
+    position_x: f32,
+    position_y: f32,
+    width: f32,
+    height: f32,
+    speed: f32,
+    alive: bool,
+
+    pub fn init(position_x: f32, position_y: f32, width: f32, height: f32) @This() {
+        return .{
+            .position_x = position_x,
+            .position_y = position_y,
+            .width = width,
+            .height = height,
+            .speed = 5.0,
+            .alive = true,
+        };
+    }
+
+    pub fn draw(self: @This()) void {
+        if (self.alive) {
+            rl.drawRectangle(@intFromFloat(self.position_x), @intFromFloat(self.position_y), @intFromFloat(self.width), @intFromFloat(self.height), rl.Color.green);
+        }
+     }
+
+};
+
 pub fn main() void {
     const screenWidth: comptime_int = 800;
     const screenHeight: comptime_int = 600;
     const maxBullets = 10;
     const bulletWidth = 4.0;
     const bulletHeight = 10.0;
+    const invaderCols = 11;
+    const invaderRows = 5;
+    const invaderWidth = 40.0;
+    const invaderHeight = 30.0;
+    const invaderStartX = 100.0;
+    const invaderStartY = 50.0;
+    const invaderSpacingX = 60.0;
+    const invaderSpacingY = 40.0;
+
 
     rl.initWindow(screenWidth, screenHeight, "Zig Invaders");
 
@@ -160,6 +196,16 @@ pub fn main() void {
     var bullets: [maxBullets]Bullet = undefined;
     for (&bullets) |*bullet| {
         bullet.* = Bullet.init(0, 0, bulletWidth, bulletHeight);
+    }
+
+    var invaders: [invaderRows][invaderCols]Invader = undefined;
+
+    for (&invaders, 0..) |*row, i| {
+        for (row, 0..) |*invader, j| {
+            const x = invaderStartX + @as(f32, @floatFromInt(j)) * invaderSpacingX;
+            const y = invaderStartY + @as(f32, @floatFromInt(i)) * invaderSpacingY;
+            invader.* = Invader.init(x, y, invaderWidth, invaderHeight);
+        }
     }
 
     // 60 frames per second
@@ -195,6 +241,12 @@ pub fn main() void {
         // Draw logic
         for (&bullets) |*bullet| {
             bullet.draw();
+        }
+
+        for (&invaders) |*row| {
+            for (row) |*invader| {
+                invader.draw();
+            }
         }
 
         rl.drawText("Zig Invaders", 300, 250, 40, rl.Color.green);
