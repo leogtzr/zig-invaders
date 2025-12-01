@@ -134,6 +134,16 @@ const Bullet = struct {
             rl.drawRectangle(@intFromFloat(self.position_x), @intFromFloat(self.position_y), @intFromFloat(self.width), @intFromFloat(self.height), rl.Color.red);
         }
     }
+
+
+    pub fn getRect(self: @This()) Rectangle {
+        return .{
+            .x = self.position_x,
+            .y = self.position_y,
+            .width = self.width,
+            .height = self.height,
+        };
+    }
 };
 
 const Invader = struct {
@@ -167,6 +177,14 @@ const Invader = struct {
         self.position_y += dy;
     }
 
+    pub fn getRect(self: @This()) Rectangle {
+        return .{
+            .x = self.position_x,
+            .y = self.position_y,
+            .width = self.width,
+            .height = self.height,
+        };
+    }
 };
 
 pub fn main() void {
@@ -189,6 +207,7 @@ pub fn main() void {
     
     var invader_direction: f32 = 1.0;   // > 0 is right, < 0 is left
     var move_timer: i32 = 0;
+    var score: i32 = 0;
     
     rl.initWindow(screenWidth, screenHeight, "Zig Invaders");
 
@@ -248,6 +267,24 @@ pub fn main() void {
             bullet.update();
         }
 
+        // Collision between the bullet and the invader.
+        for (&bullets) |*bullet| {
+            if (bullet.active) {
+                for (&invaders) |*row| {
+                    for (row) |*invader| {
+                        if (invader.alive) {
+                            if (bullet.getRect().intersects(invader.getRect())) {
+                                invader.alive = false;
+                                bullet.active = false;
+                                score += 10;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         move_timer += 1;
         if (move_timer >= invaderMoveDelay) {
             move_timer = 0;
@@ -298,6 +335,8 @@ pub fn main() void {
             }
         }
 
+        const score_text = rl.textFormat("Score: %d", .{score});
+        rl.drawText(score_text, 20, screenHeight - 20, 20, rl.Color.white);
         rl.drawText("Zig Invaders", 300, 250, 40, rl.Color.green);
     }
 }
