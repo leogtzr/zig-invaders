@@ -171,7 +171,6 @@ const Invader = struct {
         }
      }
 
-
     pub fn update(self: *@This(), dx: f32, dy: f32) void {
         self.position_x += dx;
         self.position_y += dy;
@@ -184,6 +183,50 @@ const Invader = struct {
             .width = self.width,
             .height = self.height,
         };
+    }
+};
+
+const EnemyBullet = struct {
+    position_x: f32,
+    position_y: f32,
+    width: f32,
+    height: f32,
+    speed: f32,
+    active: bool,
+
+    pub fn init(position_x: f32, position_y: f32, width: f32, height: f32) @This() {
+        return .{
+            .position_x = position_x,
+            .position_y = position_y,
+            .width = width,
+            .height = height,
+            .speed = 5.0,
+            .active = false,
+        };
+    }
+    
+    pub fn getRect(self: @This()) Rectangle {
+        return .{
+            .x = self.position_x,
+            .y = self.position_y,
+            .width = self.width,
+            .height = self.height,
+        };
+    }
+
+    pub fn update(self: *@This(), screen_height: i32) void {
+        if (self.active) {
+            self.position_y += self.speed;
+            if (self.position_y > @as(f32, @floatFromInt(screen_height))) {
+                self.active = false;
+            }
+        }
+    }
+
+    pub fn draw(self: @This()) void {
+        if (self.active) {
+            rl.drawRectangle(@intFromFloat(self.position_x), @intFromFloat(self.position_y), @intFromFloat(self.width), @intFromFloat(self.height), rl.Color.magenta);
+        }
     }
 };
 
@@ -204,9 +247,13 @@ pub fn main() void {
     const invaderSpeed = 5.0;
     const invaderMoveDelay = 30;
     const invaderDropDistance = 20.0;
+    const maxEnemyBullets = 20;
+    const enemyShootDelay = 60;
+    const enemyShootChance = 5;
     
     var invader_direction: f32 = 1.0;   // > 0 is right, < 0 is left
     var move_timer: i32 = 0;
+    var enemy_shoot_timer: i32 = 0;
     var score: i32 = 0;
     
     rl.initWindow(screenWidth, screenHeight, "Zig Invaders");
@@ -226,6 +273,11 @@ pub fn main() void {
     var bullets: [maxBullets]Bullet = undefined;
     for (&bullets) |*bullet| {
         bullet.* = Bullet.init(0, 0, bulletWidth, bulletHeight);
+    }
+
+    var enemy_bullets: [maxEnemyBullets]EnemyBullet = undefined;
+    for (&enemy_bullets) |*bullet| {
+        bullet.* = EnemyBullet.init(0, 0, bulletWidth, bulletHeight);
     }
 
     var invaders: [invaderRows][invaderCols]Invader = undefined;
@@ -285,6 +337,28 @@ pub fn main() void {
             }
         }
 
+        for (&enemy_bullets) |*bullet| {
+            bullet.update(screenHeight);
+        }
+        enemy_shoot_timer += 1;
+        if (enemy_shoot_timer >= enemyShootDelay) {
+            enemy_shoot_timer = 0;
+            for (&invaders) |*row| {
+                for (row) |*invader| {
+                    if (invader.alive and rl.getRandomValue(0, 100) < enemyShootChance) {
+                        for (&enemy_bullets) |*bullet| {
+                            if (!bullet.active) {
+                                bullet.position_x = invader.position_x + invader.width / 2 - bullet.width / 2;
+                                bullet.position_y = invader.position_y + invader.height;
+                                bullet.active = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         move_timer += 1;
         if (move_timer >= invaderMoveDelay) {
             move_timer = 0;
@@ -333,6 +407,10 @@ pub fn main() void {
             for (row) |*invader| {
                 invader.draw();
             }
+        }
+
+        for (&enemy_bullets) |*bullet| {
+            bullet.draw();
         }
 
         const score_text = rl.textFormat("Score: %d", .{score});
