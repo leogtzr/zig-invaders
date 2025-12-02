@@ -135,7 +135,6 @@ const Bullet = struct {
         }
     }
 
-
     pub fn getRect(self: @This()) Rectangle {
         return .{
             .x = self.position_x,
@@ -169,7 +168,7 @@ const Invader = struct {
         if (self.alive) {
             rl.drawRectangle(@intFromFloat(self.position_x), @intFromFloat(self.position_y), @intFromFloat(self.width), @intFromFloat(self.height), rl.Color.green);
         }
-     }
+    }
 
     pub fn update(self: *@This(), dx: f32, dy: f32) void {
         self.position_x += dx;
@@ -204,7 +203,7 @@ const EnemyBullet = struct {
             .active = false,
         };
     }
-    
+
     pub fn getRect(self: @This()) Rectangle {
         return .{
             .x = self.position_x,
@@ -250,12 +249,13 @@ pub fn main() void {
     const maxEnemyBullets = 20;
     const enemyShootDelay = 60;
     const enemyShootChance = 5;
-    
-    var invader_direction: f32 = 1.0;   // > 0 is right, < 0 is left
+    var game_over: bool = false;
+
+    var invader_direction: f32 = 1.0; // > 0 is right, < 0 is left
     var move_timer: i32 = 0;
     var enemy_shoot_timer: i32 = 0;
     var score: i32 = 0;
-    
+
     rl.initWindow(screenWidth, screenHeight, "Zig Invaders");
 
     defer rl.closeWindow();
@@ -300,6 +300,18 @@ pub fn main() void {
         defer rl.endDrawing();
 
         rl.clearBackground(rl.Color.black);
+        
+        if (game_over) {
+            rl.drawText("GAME OVER", 270, 250, 40, rl.Color.red);
+            const score_text = rl.textFormat("Final Score %d", .{score});
+            rl.drawText(score_text, 285, 310, 30, rl.Color.white);
+            
+            rl.drawText("PRESS ENTER to play again or ESC to quit", 180, 360, 20, rl.Color.green);
+            if (rl.isKeyPressed(rl.KeyboardKey.enter)) {
+                game_over = false;
+            }
+            continue;
+        }
 
         player.update();
         if (rl.isKeyPressed(rl.KeyboardKey.space)) {
@@ -339,6 +351,13 @@ pub fn main() void {
 
         for (&enemy_bullets) |*bullet| {
             bullet.update(screenHeight);
+            if (bullet.active) {
+                if (bullet.getRect().intersects(player.getRect())) {
+                    bullet.active = false;
+                    game_over = true;
+                    // rl.drawText("GAME OVER", 20, 20, 20, rl.Color.red);
+                }
+            }
         }
         enemy_shoot_timer += 1;
         if (enemy_shoot_timer >= enemyShootDelay) {
