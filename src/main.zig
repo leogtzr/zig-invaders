@@ -28,7 +28,7 @@ const GameConfig = struct {
     playerHeight: f32,
     playerStartY: f32,
 
-    bulletWidht: f32,
+    bulletWidth: f32,
     bulletHeight: f32,
 
     shieldStartX: f32,
@@ -43,6 +43,9 @@ const GameConfig = struct {
     invaderHeight: f32,
     invaderSpacingX: f32,
     invaderSpacingY: f32,
+    shieldCount: i32,
+    maxBullets: i32,
+    maxEnemyBullets: i32,
 };
 
 const Player = struct {
@@ -339,7 +342,7 @@ pub fn main() void {
     var move_timer: i32 = 0;
     var enemy_shoot_timer: i32 = 0;
     var score: i32 = 0;
-    const shieldCount = 4;
+    const shieldCount: i32 = 4;
     const shieldWidth = 80.0;
     const shieldHeight = 60.0;
     const shieldStartX = 150;
@@ -354,7 +357,7 @@ pub fn main() void {
         .screenHeight = screenHeight,
         .playerWidth = playerWidth,
         .playerHeight = playerHeight,
-        .bulletWidht = bulletWidth,
+        .bulletWidth = bulletWidth,
         .bulletHeight = bulletHeight,
         .shieldStartX = shieldStartX,
         .shieldStartY = shieldStartY,
@@ -368,31 +371,34 @@ pub fn main() void {
         .invaderSpacingX = invaderSpacingX,
         .invaderSpacingY = invaderSpacingY,
         .playerStartY = playerStartY,
+        .shieldCount = shieldCount,
+        .maxBullets = maxBullets,
+        .maxEnemyBullets = maxEnemyBullets,
     };
 
-    rl.initWindow(screenWidth, screenHeight, "Zig Invaders");
+    rl.initWindow(config.screenWidth, config.screenHeight, "Zig Invaders");
 
     defer rl.closeWindow();
 
     var player: Player = Player.init(
-        @as(f32, @floatFromInt(screenWidth)) / 2 - playerWidth / 2,
-        playerStartY,
-        playerWidth,
-        playerHeight,
+        @as(f32, @floatFromInt(config.screenWidth)) / 2 - config.playerWidth / 2,
+        config.playerStartY,
+        config.playerWidth,
+        config.playerHeight,
     );
 
-    var shields: [shieldCount]Shield = undefined;
+    var shields: [config.shieldCount]Shield = undefined;
     for (&shields, 0..) |*shield, i| {
-        const x = shieldStartX + @as(f32, @floatFromInt(i)) * shieldSpacing;
-        shield.* = Shield.init(x, shieldStartY, shieldWidth, shieldHeight);
+        const x = config.shieldStartX + @as(f32, @floatFromInt(i)) * config.shieldSpacing;
+        shield.* = Shield.init(x, config.shieldStartY, config.shieldWidth, config.shieldHeight);
     }
 
-    var bullets: [maxBullets]Bullet = undefined;
+    var bullets: [config.maxBullets]Bullet = undefined;
     for (&bullets) |*bullet| {
-        bullet.* = Bullet.init(0, 0, bulletWidth, bulletHeight);
+        bullet.* = Bullet.init(0, 0, config.bulletWidth, config.bulletHeight);
     }
 
-    var enemy_bullets: [maxEnemyBullets]EnemyBullet = undefined;
+    var enemy_bullets: [config.maxEnemyBullets]EnemyBullet = undefined;
     for (&enemy_bullets) |*bullet| {
         bullet.* = EnemyBullet.init(0, 0, bulletWidth, bulletHeight);
     }
