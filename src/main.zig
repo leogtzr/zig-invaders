@@ -229,6 +229,46 @@ const EnemyBullet = struct {
     }
 };
 
+const Shield = struct {
+    position_x: f32, 
+    position_y: f32,
+    width: f32, 
+    height: f32,
+    // The shields can take multiple hits before they disapear
+    health: i32,
+
+    pub fn init(position_x: f32, position_y: f32, width: f32, height: f32) @This() {
+        return .{
+            .position_x = position_x,
+            .position_y = position_y,
+            .width = width,
+            .height = height,
+            .health = 10,
+        };
+    }
+
+    pub fn getRect(self: @This()) Rectangle {
+        return .{
+            .x = self.position_x,
+            .y = self.position_y,
+            .width = self.width,
+            .height = self.height,
+        };
+    }
+
+    pub fn draw(self: @This()) void {
+        if (self.health > 0) {
+            const alpha = @as(u8, @intCast(@min(255, self.health * 25)));
+            rl.drawRectangle(@intFromFloat(self.position_x), @intFromFloat(self.position_y), @intFromFloat(self.width), @intFromFloat(self.height), rl.Color{
+                .r = 0,
+                .g = 255,
+                .b = 255,
+                .a = alpha,
+            });
+        }
+    }
+};
+
 pub fn main() void {
     const screenWidth: comptime_int = 800;
     const screenHeight: comptime_int = 600;
@@ -255,6 +295,12 @@ pub fn main() void {
     var move_timer: i32 = 0;
     var enemy_shoot_timer: i32 = 0;
     var score: i32 = 0;
+    const shieldCount = 4;
+    const shieldWidth = 80.0;
+    const shieldHeight = 60.0;
+    const shieldStartX = 150;
+    const shieldStartY = 450.0;
+    const shieldSpacing = 150.0;
 
     rl.initWindow(screenWidth, screenHeight, "Zig Invaders");
 
@@ -269,6 +315,12 @@ pub fn main() void {
         playerWidth,
         playerHeight,
     );
+
+    var shields: [shieldCount]Shield = undefined;
+    for (&shields, 0..) |*shield, i| {
+        const x = shieldStartX + @as(f32, @floatFromInt(i)) * shieldSpacing;
+        shield.* = Shield.init(x, shieldStartY, shieldWidth, shieldHeight);
+    }
 
     var bullets: [maxBullets]Bullet = undefined;
     for (&bullets) |*bullet| {
@@ -346,6 +398,16 @@ pub fn main() void {
                         }
                     }
                 }
+                
+                for (&shields) |*shield| {
+                    if (shield.health > 0) {
+                        if (bullet.getRect().intersects(shield.getRect())) {
+                            bullet.active = false;
+                            shield.health -= 1;
+                            break;
+                        }
+                    }
+                }
             }
         }
 
@@ -357,6 +419,17 @@ pub fn main() void {
                     game_over = true;
                     // rl.drawText("GAME OVER", 20, 20, 20, rl.Color.red);
                 }
+
+                for (&shields) |*shield| {
+                    if (shield.health > 0) {
+                        if (bullet.getRect().intersects(shield.getRect())) {
+                            bullet.active = false;
+                            shield.health -= 1;
+                            break;
+                        }
+                    }
+                }
+
             }
         }
         enemy_shoot_timer += 1;
@@ -416,8 +489,12 @@ pub fn main() void {
             }
         }
 
+        // Draw logic:
+        for (&shields) |*shield| {
+            shield.draw();
+        }
         player.draw();
-        // Draw logic
+
         for (&bullets) |*bullet| {
             bullet.draw();
         }
