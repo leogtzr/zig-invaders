@@ -1,346 +1,15 @@
 const rl = @import("raylib");
 const std = @import("std");
+const cfg = @import("game/config.zig");
+const Player = @import("game/player.zig").Player;
+const Bullet = @import("game/bullet.zig").Bullet;
+const EnemyBullet = @import("game/enemy_bullet.zig").EnemyBullet;
+const GameState = @import("game/game_state.zig").GameState;
+const Invader = @import("game/invader.zig").Invader;
+const Shield = @import("game/shield.zig").Shield;
 
 const INVADER_GRID_ROWS = 5;
 const INVADER_GRID_COLS = 11;
-
-const Rectangle = struct {
-    x: f32,
-    y: f32,
-    width: f32,
-    height: f32,
-
-    // Mechanics about colisions
-    // By convention, the first parameter is self or this, the frst param is the type where we belong to.
-    // Usage: rectangle.intersects(rectangle2)
-    //
-    // If we do not order the parameters like this, we would have to do something like this:
-    // Rectangle.intersects(rect1, rect2)
-    pub fn intersects(self: Rectangle, other: Rectangle) bool {
-        return self.x < (other.x + other.width) and
-            (self.x + self.width) > other.x and
-            self.y < (other.y + other.height) and
-            (self.y + self.height) > other.y;
-    }
-};
-
-// To keep everything organized and avoid magic numbers ...
-const GameConfig = struct {
-    screenWidth: i32,
-    screenHeight: i32,
-
-    playerWidth: f32,
-    playerHeight: f32,
-    playerStartY: f32,
-
-    bulletWidth: f32,
-    bulletHeight: f32,
-
-    shieldStartX: f32,
-    shieldStartY: f32,
-    shieldWidth: f32,
-    shieldHeight: f32,
-    shieldSpacing: f32,
-
-    invaderStartX: f32,
-    invaderStartY: f32,
-    invaderWidth: f32,
-    invaderHeight: f32,
-    invaderSpacingX: f32,
-    invaderSpacingY: f32,
-    shieldCount: i32,
-    maxBullets: i32,
-    maxEnemyBullets: i32,
-
-    invaderGridRows: i32,
-    invaderGridCols: i32,
-    invaderMoveDelay: i32,
-
-    invaderSpeed: f32,
-    invaderDropDistance: f32,
-    enemyShootDelay: i32,
-    enemyShootChance: i32,
-};
-
-const Player = struct {
-    position_x: f32,
-    position_y: f32,
-    width: f32,
-    height: f32,
-    speed: f32,
-
-    pub fn init(position_x: f32, position_y: f32, width: f32, height: f32) @This() {
-        // Using the anonymous init pattern:
-        return .{
-            .position_x = position_x,
-            .position_y = position_y,
-            .width = width,
-            .height = height,
-            // ToDo: read the speed from the GameConfig
-            .speed = 5.0,
-        };
-    }
-
-    // Need *This() because we are modifying
-    pub fn update(self: *@This()) void {
-        if (rl.isKeyDown(rl.KeyboardKey.right)) {
-            // If we move to the right ...
-            self.position_x += self.speed;
-        }
-
-        if (rl.isKeyDown(rl.KeyboardKey.left)) {
-            // If we move to the right ...
-            self.position_x -= self.speed;
-        }
-        if (self.position_x < 0) {
-            self.position_x = 0;
-        }
-        if (self.position_x + self.width > @as(f32, @floatFromInt(rl.getScreenWidth()))) {
-            self.position_x = @as(f32, @floatFromInt(rl.getScreenWidth())) - self.width;
-        }
-    }
-
-    // Just reading:
-    pub fn draw(self: @This()) void {
-        rl.drawRectangle(@intFromFloat(self.position_x), @intFromFloat(self.position_y), @intFromFloat(self.width), @intFromFloat(self.height), rl.Color.blue);
-    }
-
-    pub fn getRect(self: @This()) Rectangle {
-        return .{
-            .x = self.position_x,
-            .y = self.position_y,
-            .width = self.width,
-            .height = self.height,
-        };
-    }
-};
-
-const Bullet = struct {
-    position_x: f32,
-    position_y: f32,
-    width: f32,
-    height: f32,
-    speed: f32,
-    active: bool,
-
-    pub fn init(position_x: f32, position_y: f32, width: f32, height: f32) @This() {
-        return .{
-            .position_x = position_x,
-            .position_y = position_y,
-            .width = width,
-            .height = height,
-            .speed = 10.0,
-            // Bullets start inactive.
-            // Also: we set the speed at 10, so they should be faster than the player.
-            .active = false,
-        };
-    }
-
-    pub fn update(self: *@This()) void {
-        if (self.active) {
-            // Vamos hacia arriba ...
-            self.position_y -= self.speed;
-            if (self.position_y < 0) {
-                self.active = false;
-            }
-        }
-    }
-
-    pub fn draw(self: @This()) void {
-        if (self.active) {
-            rl.drawRectangle(@intFromFloat(self.position_x), @intFromFloat(self.position_y), @intFromFloat(self.width), @intFromFloat(self.height), rl.Color.red);
-        }
-    }
-
-    pub fn getRect(self: @This()) Rectangle {
-        return .{
-            .x = self.position_x,
-            .y = self.position_y,
-            .width = self.width,
-            .height = self.height,
-        };
-    }
-};
-
-// REEMPLAZA tu struct Invader con este:
-const Invader = struct {
-    position_x: f32,
-    position_y: f32,
-    width: f32,
-    height: f32,
-    speed: f32,
-    alive: bool,
-    color: rl.Color,
-    animation_frame: u8,
-
-    pub fn init(position_x: f32, position_y: f32, width: f32, height: f32) @This() {
-        // Colores aleatorios para variedad
-        const colors = [_]rl.Color{
-            rl.Color.green,
-            rl.Color{ .r = 50, .g = 205, .b = 50, .a = 255 }, // LimeGreen
-            rl.Color{ .r = 0, .g = 128, .b = 0, .a = 255 }, // Green (dark)
-            rl.Color{ .r = 144, .g = 238, .b = 144, .a = 255 }, // LightGreen
-            rl.Color{ .r = 124, .g = 252, .b = 0, .a = 255 }, // LawnGreen
-        };
-
-        const colors_len = colors.len;
-        const random_idx = @as(usize, @intCast(rl.getRandomValue(0, @as(i32, @intCast(colors_len - 1)))));
-        return .{
-            .position_x = position_x,
-            .position_y = position_y,
-            .width = width,
-            .height = height,
-            .speed = 5.0,
-            .alive = true,
-            .color = colors[random_idx],
-            .animation_frame = 0,
-        };
-    }
-
-    pub fn updateAnimation(self: *@This()) void {
-        // Cambiar frame de animación (simple)
-        self.animation_frame = (self.animation_frame + 1) % 2;
-    }
-
-    pub fn draw(self: @This()) void {
-        if (!self.alive) return;
-
-        const center_x = self.position_x + self.width / 2;
-        const center_y = self.position_y + self.height / 2;
-
-        // Cuerpo principal - diferente forma según frame de animación
-        if (self.animation_frame == 0) {
-            // Forma 1: Alien clásico
-            rl.drawRectangle(@intFromFloat(self.position_x), @intFromFloat(self.position_y), @intFromFloat(self.width), @intFromFloat(self.height * 0.7), self.color);
-
-            // Cabeza
-            rl.drawTriangle(rl.Vector2{ .x = self.position_x, .y = self.position_y + self.height * 0.7 }, rl.Vector2{ .x = center_x, .y = self.position_y }, rl.Vector2{ .x = self.position_x + self.width, .y = self.position_y + self.height * 0.7 }, self.color);
-        } else {
-            // Forma 2: Alternativa
-            rl.drawRectangle(@intFromFloat(self.position_x + self.width * 0.2), @intFromFloat(self.position_y), @intFromFloat(self.width * 0.6), @intFromFloat(self.height), self.color);
-
-            // Antenas
-            rl.drawRectangle(@intFromFloat(self.position_x), @intFromFloat(self.position_y), @intFromFloat(self.width * 0.2), @intFromFloat(self.height * 0.3), self.color);
-            rl.drawRectangle(@intFromFloat(self.position_x + self.width * 0.8), @intFromFloat(self.position_y), @intFromFloat(self.width * 0.2), @intFromFloat(self.height * 0.3), self.color);
-        }
-
-        // Ojos (siempre visibles)
-        const eye_size_f32 = @max(3.0, self.width / 10);
-        rl.drawCircle(@intFromFloat(center_x - self.width * 0.25), @intFromFloat(center_y), eye_size_f32, rl.Color.red);
-        rl.drawCircle(@intFromFloat(center_x + self.width * 0.25), @intFromFloat(center_y), eye_size_f32, rl.Color.red);
-
-        // Pupilas
-        const pupil_size_f32 = eye_size_f32 / 2;
-        rl.drawCircle(@intFromFloat(center_x - self.width * 0.25), @intFromFloat(center_y), pupil_size_f32 / 2, rl.Color.black);
-        rl.drawCircle(@intFromFloat(center_x + self.width * 0.25), @intFromFloat(center_y), pupil_size_f32 / 2, rl.Color.black);
-
-        // Boca/ventosa
-        const mouth_size_f32 = self.width / 8;
-        rl.drawCircle(@intFromFloat(center_x), @intFromFloat(center_y + self.height * 0.3), mouth_size_f32, rl.Color.dark_gray);
-    }
-
-    pub fn update(self: *@This(), dx: f32, dy: f32) void {
-        self.position_x += dx;
-        self.position_y += dy;
-        // Actualizar animación al moverse
-        if (dx != 0 or dy != 0) {
-            self.updateAnimation();
-        }
-    }
-
-    pub fn getRect(self: @This()) Rectangle {
-        return .{
-            .x = self.position_x,
-            .y = self.position_y,
-            .width = self.width,
-            .height = self.height,
-        };
-    }
-};
-
-const EnemyBullet = struct {
-    position_x: f32,
-    position_y: f32,
-    width: f32,
-    height: f32,
-    speed: f32,
-    active: bool,
-
-    pub fn init(position_x: f32, position_y: f32, width: f32, height: f32) @This() {
-        return .{
-            .position_x = position_x,
-            .position_y = position_y,
-            .width = width,
-            .height = height,
-            .speed = 5.0,
-            .active = false,
-        };
-    }
-
-    pub fn getRect(self: @This()) Rectangle {
-        return .{
-            .x = self.position_x,
-            .y = self.position_y,
-            .width = self.width,
-            .height = self.height,
-        };
-    }
-
-    pub fn update(self: *@This(), screen_height: i32) void {
-        if (self.active) {
-            self.position_y += self.speed;
-            if (self.position_y > @as(f32, @floatFromInt(screen_height))) {
-                self.active = false;
-            }
-        }
-    }
-
-    pub fn draw(self: @This()) void {
-        if (self.active) {
-            rl.drawRectangle(@intFromFloat(self.position_x), @intFromFloat(self.position_y), @intFromFloat(self.width), @intFromFloat(self.height), rl.Color.magenta);
-        }
-    }
-};
-
-const Shield = struct {
-    position_x: f32,
-    position_y: f32,
-    width: f32,
-    height: f32,
-    // The shields can take multiple hits before they disapear
-    health: i32,
-
-    pub fn init(position_x: f32, position_y: f32, width: f32, height: f32) @This() {
-        return .{
-            .position_x = position_x,
-            .position_y = position_y,
-            .width = width,
-            .height = height,
-            .health = 10,
-        };
-    }
-
-    pub fn getRect(self: @This()) Rectangle {
-        return .{
-            .x = self.position_x,
-            .y = self.position_y,
-            .width = self.width,
-            .height = self.height,
-        };
-    }
-
-    pub fn draw(self: @This()) void {
-        if (self.health > 0) {
-            const alpha = @as(u8, @intCast(@min(255, self.health * 25)));
-            rl.drawRectangle(@intFromFloat(self.position_x), @intFromFloat(self.position_y), @intFromFloat(self.width), @intFromFloat(self.height), rl.Color{
-                .r = 0,
-                .g = 255,
-                .b = 255,
-                .a = alpha,
-            });
-        }
-    }
-};
 
 fn resetGame(
     player: *Player,
@@ -349,7 +18,7 @@ fn resetGame(
     shields: []Shield,
     invaders: anytype, // pushing inference to its limits ... might have some problems with the ZLS
     gameState: *GameState,
-    config: *const GameConfig,
+    config: *const cfg.GameConfig,
 ) void {
     player.* = Player.init(
         @as(f32, @floatFromInt(config.screenWidth)) / 2 - config.playerWidth / 2,
@@ -385,35 +54,26 @@ fn resetGame(
     gameState.score = 0;
 }
 
-const GameState = struct {
-    gameOver: bool,
-    gameWon: bool,
-    invaderDirection: f32,
-    moveTimer: i32,
-    enemyShootTimer: i32,
-    score: i32,
-};
-
-fn initBullets(bullets: []Bullet, config: GameConfig) void {
+fn initBullets(bullets: []Bullet, config: cfg.GameConfig) void {
     for (bullets) |*bullet| {
         bullet.* = Bullet.init(0, 0, config.bulletWidth, config.bulletHeight);
     }
 }
 
-fn initEnemyBullets(enemyBullets: []EnemyBullet, config: GameConfig) void {
+fn initEnemyBullets(enemyBullets: []EnemyBullet, config: cfg.GameConfig) void {
     for (enemyBullets) |*bullet| {
         bullet.* = EnemyBullet.init(0, 0, config.bulletWidth, config.bulletHeight);
     }
 }
 
-fn initShields(shields: []Shield, config: GameConfig) void {
+fn initShields(shields: []Shield, config: cfg.GameConfig) void {
     for (shields, 0..) |*shield, i| {
         const x = config.shieldStartX + @as(f32, @floatFromInt(i)) * config.shieldSpacing;
         shield.* = Shield.init(x, config.shieldStartY, config.shieldWidth, config.shieldHeight);
     }
 }
 
-fn initInvaders(invaders: *[INVADER_GRID_ROWS][INVADER_GRID_COLS]Invader, config: GameConfig) void {
+fn initInvaders(invaders: *[INVADER_GRID_ROWS][INVADER_GRID_COLS]Invader, config: cfg.GameConfig) void {
     for (0..INVADER_GRID_ROWS) |i| {
         for (0..INVADER_GRID_COLS) |j| {
             const x = config.invaderStartX + @as(f32, @floatFromInt(j)) * config.invaderSpacingX;
@@ -447,7 +107,7 @@ pub fn main() void {
         .score = 0,
     };
 
-    const config = GameConfig{
+    const config = cfg.GameConfig{
         .screenWidth = 800,
         .screenHeight = 600,
         .playerWidth = 50.0,
