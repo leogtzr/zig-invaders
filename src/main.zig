@@ -1,4 +1,9 @@
 const rl = @import("raylib");
+const std = @import("std");
+
+const INVADER_GRID_ROWS = 5;
+const INVADER_GRID_COLS = 11;
+
 const Rectangle = struct {
     x: f32,
     y: f32,
@@ -39,13 +44,22 @@ const GameConfig = struct {
 
     invaderStartX: f32,
     invaderStartY: f32,
-    invaderWidht: f32,
+    invaderWidth: f32,
     invaderHeight: f32,
     invaderSpacingX: f32,
     invaderSpacingY: f32,
     shieldCount: i32,
     maxBullets: i32,
     maxEnemyBullets: i32,
+
+    invaderGridRows: i32,
+    invaderGridCols: i32,
+    invaderMoveDelay: i32,
+
+    invaderSpeed: f32,
+    invaderDropDistance: f32,
+    enemyShootDelay: i32,
+    enemyShootChance: i32,
 };
 
 const Player = struct {
@@ -148,6 +162,7 @@ const Bullet = struct {
     }
 };
 
+// REEMPLAZA tu struct Invader con este:
 const Invader = struct {
     position_x: f32,
     position_y: f32,
@@ -155,8 +170,21 @@ const Invader = struct {
     height: f32,
     speed: f32,
     alive: bool,
+    color: rl.Color,
+    animation_frame: u8,
 
     pub fn init(position_x: f32, position_y: f32, width: f32, height: f32) @This() {
+        // Colores aleatorios para variedad
+        const colors = [_]rl.Color{
+            rl.Color.green,
+            rl.Color{ .r = 50, .g = 205, .b = 50, .a = 255 },   // LimeGreen
+            rl.Color{ .r = 0, .g = 128, .b = 0, .a = 255 },     // Green (dark)
+            rl.Color{ .r = 144, .g = 238, .b = 144, .a = 255 }, // LightGreen
+            rl.Color{ .r = 124, .g = 252, .b = 0, .a = 255 },   // LawnGreen
+        };
+        
+        const colors_len = colors.len;
+    const random_idx = @as(usize, @intCast(rl.getRandomValue(0, @as(i32, @intCast(colors_len - 1)))));
         return .{
             .position_x = position_x,
             .position_y = position_y,
@@ -164,18 +192,114 @@ const Invader = struct {
             .height = height,
             .speed = 5.0,
             .alive = true,
+            .color = colors[random_idx],
+            .animation_frame = 0,
         };
     }
 
+    pub fn updateAnimation(self: *@This()) void {
+        // Cambiar frame de animación (simple)
+        self.animation_frame = (self.animation_frame + 1) % 2;
+    }
+
     pub fn draw(self: @This()) void {
-        if (self.alive) {
-            rl.drawRectangle(@intFromFloat(self.position_x), @intFromFloat(self.position_y), @intFromFloat(self.width), @intFromFloat(self.height), rl.Color.green);
+        if (!self.alive) return;
+        
+        const center_x = self.position_x + self.width / 2;
+        const center_y = self.position_y + self.height / 2;
+        
+        // Cuerpo principal - diferente forma según frame de animación
+        if (self.animation_frame == 0) {
+            // Forma 1: Alien clásico
+            rl.drawRectangle(
+                @intFromFloat(self.position_x),
+                @intFromFloat(self.position_y),
+                @intFromFloat(self.width),
+                @intFromFloat(self.height * 0.7),
+                self.color
+            );
+            
+            // Cabeza
+            rl.drawTriangle(
+                rl.Vector2{ .x = self.position_x, .y = self.position_y + self.height * 0.7 },
+                rl.Vector2{ .x = center_x, .y = self.position_y },
+                rl.Vector2{ .x = self.position_x + self.width, .y = self.position_y + self.height * 0.7 },
+                self.color
+            );
+        } else {
+            // Forma 2: Alternativa
+            rl.drawRectangle(
+                @intFromFloat(self.position_x + self.width * 0.2),
+                @intFromFloat(self.position_y),
+                @intFromFloat(self.width * 0.6),
+                @intFromFloat(self.height),
+                self.color
+            );
+            
+            // Antenas
+            rl.drawRectangle(
+                @intFromFloat(self.position_x),
+                @intFromFloat(self.position_y),
+                @intFromFloat(self.width * 0.2),
+                @intFromFloat(self.height * 0.3),
+                self.color
+            );
+            rl.drawRectangle(
+                @intFromFloat(self.position_x + self.width * 0.8),
+                @intFromFloat(self.position_y),
+                @intFromFloat(self.width * 0.2),
+                @intFromFloat(self.height * 0.3),
+                self.color
+            );
         }
+        
+        // Ojos (siempre visibles)
+        const eye_size_f32 = @max(3.0, self.width / 10);
+        rl.drawCircle(
+            @intFromFloat(center_x - self.width * 0.25),
+            @intFromFloat(center_y),
+            eye_size_f32,
+            rl.Color.red
+        );
+        rl.drawCircle(
+            @intFromFloat(center_x + self.width * 0.25),
+            @intFromFloat(center_y),
+            eye_size_f32,
+            rl.Color.red
+        );
+        
+        // Pupilas
+        const pupil_size_f32 = eye_size_f32 / 2;
+        rl.drawCircle(
+            @intFromFloat(center_x - self.width * 0.25),
+            @intFromFloat(center_y),
+            pupil_size_f32 / 2,
+            rl.Color.black
+        );
+        rl.drawCircle(
+            @intFromFloat(center_x + self.width * 0.25),
+            @intFromFloat(center_y),
+            pupil_size_f32 / 2,
+            rl.Color.black
+        );
+        
+        // Boca/ventosa
+        const mouth_size_f32 = self.width / 8;
+        rl.drawCircle(
+            @intFromFloat(center_x),
+            @intFromFloat(center_y + self.height * 0.3),
+            mouth_size_f32,
+            rl.Color.dark_gray
+        );
     }
 
     pub fn update(self: *@This(), dx: f32, dy: f32) void {
         self.position_x += dx;
         self.position_y += dy;
+        // Actualizar animación al moverse
+        if (dx != 0 or dy != 0) {
+            self.updateAnimation();
+        }
     }
 
     pub fn getRect(self: @This()) Rectangle {
@@ -233,9 +357,9 @@ const EnemyBullet = struct {
 };
 
 const Shield = struct {
-    position_x: f32, 
+    position_x: f32,
     position_y: f32,
-    width: f32, 
+    width: f32,
     height: f32,
     // The shields can take multiple hits before they disapear
     health: i32,
@@ -273,17 +397,15 @@ const Shield = struct {
 };
 
 fn resetGame(
-    player: *Player, 
+    player: *Player,
     bullets: []Bullet,
     enemy_bullets: []EnemyBullet,
     shields: []Shield,
-    invaders: anytype,                   // pushing inference to its limits ... might have some problems with the ZLS
-    invader_direction: *f32,
-    score: *i32,
+    invaders: anytype, // pushing inference to its limits ... might have some problems with the ZLS
+    gameState: *GameState,
     config: *const GameConfig,
 ) void {
-    score.* = 0;
-    player.* =  Player.init(
+    player.* = Player.init(
         @as(f32, @floatFromInt(config.screenWidth)) / 2 - config.playerWidth / 2,
         @as(f32, @floatFromInt(config.screenHeight)) - 60.0,
         config.playerWidth,
@@ -307,73 +429,107 @@ fn resetGame(
         for (row, 0..) |*invader, j| {
             const x = config.invaderStartX + @as(f32, @floatFromInt(j)) * config.invaderSpacingX;
             const y = config.invaderStartY + @as(f32, @floatFromInt(i)) * config.invaderSpacingY;
-            invader.* = Invader.init(x, y, config.invaderWidht, config.invaderHeight);
-            // invader.* 
+            invader.* = Invader.init(x, y, config.invaderWidth, config.invaderHeight);
         }
     }
 
-    invader_direction.* = 1.0;
+    gameState.invaderDirection = 1.0;
+    gameState.moveTimer = 1;
+    gameState.enemyShootTimer = 0;
+    gameState.score = 0;
+}
+
+const GameState = struct {
+    gameOver: bool,
+    gameWon: bool,
+    invaderDirection: f32,
+    moveTimer: i32,
+    enemyShootTimer: i32,
+    score: i32,
+};
+
+fn initBullets(bullets: []Bullet, config: GameConfig) void {
+    for (bullets) |*bullet| {
+        bullet.* = Bullet.init(0, 0, config.bulletWidth, config.bulletHeight);
+    }
+}
+
+fn initEnemyBullets(enemyBullets: []EnemyBullet, config: GameConfig) void {
+    for (enemyBullets) |*bullet| {
+        bullet.* = EnemyBullet.init(0, 0, config.bulletWidth, config.bulletHeight);
+    }
+}
+
+fn initShields(shields: []Shield, config: GameConfig) void {
+    for (shields, 0..) |*shield, i| {
+        const x = config.shieldStartX + @as(f32, @floatFromInt(i)) * config.shieldSpacing;
+        shield.* = Shield.init(x, config.shieldStartY, config.shieldWidth, config.shieldHeight);
+    }
+}
+
+fn initInvaders(invaders: *[INVADER_GRID_ROWS][INVADER_GRID_COLS]Invader, config: GameConfig) void {
+    for (0..INVADER_GRID_ROWS) |i| {
+        for (0..INVADER_GRID_COLS) |j| {
+            const x = config.invaderStartX + @as(f32, @floatFromInt(j)) * config.invaderSpacingX;
+            const y = config.invaderStartY + @as(f32, @floatFromInt(i)) * config.invaderSpacingY;
+            invaders[i][j] = Invader.init(x, y, config.invaderWidth, config.invaderHeight);
+        }
+    }
+}
+
+fn checkIfAllInvadersAreDead(invaders: *[INVADER_GRID_ROWS][INVADER_GRID_COLS]Invader) bool {
+    var all_invaders_dead = true;
+    all_dead_lbl: for (0..INVADER_GRID_ROWS) |i| {
+        for (0..INVADER_GRID_COLS) |j| {
+            if (invaders[i][j].alive) {
+                all_invaders_dead = false;
+                break :all_dead_lbl;
+            }
+        }
+    }
+
+    return all_invaders_dead;
 }
 
 pub fn main() void {
-    const screenWidth: comptime_int = 800;
-    const screenHeight: comptime_int = 600;
-    const maxBullets = 10;
-    const bulletWidth = 4.0;
-    const bulletHeight = 10.0;
-    const invaderCols = 11;
-    const invaderRows = 5;
-    const invaderWidth = 40.0;
-    const invaderHeight = 30.0;
-    const invaderStartX = 100.0;
-    const invaderStartY = 50.0;
-    const invaderSpacingX = 60.0;
-    const invaderSpacingY = 40.0;
-    const invaderSpeed = 5.0;
-    const invaderMoveDelay = 30;
-    const invaderDropDistance = 20.0;
-    const maxEnemyBullets = 20;
-    const enemyShootDelay = 60;
-    const enemyShootChance = 5;
-    var game_over: bool = false;
-    var game_won: bool = false;
-
-    var invader_direction: f32 = 1.0; // > 0 is right, < 0 is left
-    var move_timer: i32 = 0;
-    var enemy_shoot_timer: i32 = 0;
-    var score: i32 = 0;
-    const shieldCount: i32 = 4;
-    const shieldWidth = 80.0;
-    const shieldHeight = 60.0;
-    const shieldStartX = 150;
-    const shieldStartY = 450.0;
-    const shieldSpacing = 150.0;
-    const playerWidth: comptime_float = 50.0;
-    const playerHeight: comptime_float = 30.0;
-    const playerStartY = @as(f32, @floatFromInt(screenHeight)) - 60.0;
+    var gameState = GameState{
+        .gameOver = false,
+        .gameWon = false,
+        .invaderDirection = 1.0,
+        .moveTimer = 0,
+        .enemyShootTimer = 0,
+        .score = 0,
+    };
 
     const config = GameConfig{
-        .screenWidth = screenWidth,
-        .screenHeight = screenHeight,
-        .playerWidth = playerWidth,
-        .playerHeight = playerHeight,
-        .bulletWidth = bulletWidth,
-        .bulletHeight = bulletHeight,
-        .shieldStartX = shieldStartX,
-        .shieldStartY = shieldStartY,
-        .shieldWidth = shieldWidth,
-        .shieldHeight = shieldHeight,
-        .shieldSpacing = shieldSpacing,
-        .invaderStartX = invaderStartX,
-        .invaderStartY = invaderStartY,
-        .invaderWidht = invaderWidth,
-        .invaderHeight = invaderHeight,
-        .invaderSpacingX = invaderSpacingX,
-        .invaderSpacingY = invaderSpacingY,
-        .playerStartY = playerStartY,
-        .shieldCount = shieldCount,
-        .maxBullets = maxBullets,
-        .maxEnemyBullets = maxEnemyBullets,
+        .screenWidth = 800,
+        .screenHeight = 600,
+        .playerWidth = 50.0,
+        .playerHeight = 30.0,
+        .bulletWidth = 4.0,
+        .bulletHeight = 10.0,
+        .shieldStartX = 150.0,
+        .shieldStartY = 450.0,
+        .shieldWidth = 80.0,
+        .shieldHeight = 60.0,
+        .shieldSpacing = 150.0,
+        .invaderStartX = 100.0,
+        .invaderStartY = 50.0,
+        .invaderWidth = 40.0,
+        .invaderHeight = 30.0,
+        .invaderSpacingX = 60.0,
+        .invaderSpacingY = 40.0,
+        .playerStartY = @as(f32, @floatFromInt(600)) - 60,
+        .shieldCount = 4,
+        .maxBullets = 10,
+        .maxEnemyBullets = 20,
+        .invaderGridRows = 5,
+        .invaderGridCols = 11,
+        .invaderMoveDelay = 30.0,
+        .invaderSpeed = 5.0,
+        .invaderDropDistance = 20.0,
+        .enemyShootDelay = 60,
+        .enemyShootChance = 5,
     };
 
     rl.initWindow(config.screenWidth, config.screenHeight, "Zig Invaders");
@@ -388,30 +544,16 @@ pub fn main() void {
     );
 
     var shields: [config.shieldCount]Shield = undefined;
-    for (&shields, 0..) |*shield, i| {
-        const x = config.shieldStartX + @as(f32, @floatFromInt(i)) * config.shieldSpacing;
-        shield.* = Shield.init(x, config.shieldStartY, config.shieldWidth, config.shieldHeight);
-    }
+    initShields(&shields, config);
 
     var bullets: [config.maxBullets]Bullet = undefined;
-    for (&bullets) |*bullet| {
-        bullet.* = Bullet.init(0, 0, config.bulletWidth, config.bulletHeight);
-    }
+    initBullets(&bullets, config);
 
     var enemy_bullets: [config.maxEnemyBullets]EnemyBullet = undefined;
-    for (&enemy_bullets) |*bullet| {
-        bullet.* = EnemyBullet.init(0, 0, bulletWidth, bulletHeight);
-    }
+    initEnemyBullets(&enemy_bullets, config);
 
-    var invaders: [invaderRows][invaderCols]Invader = undefined;
-
-    for (&invaders, 0..) |*row, i| {
-        for (row, 0..) |*invader, j| {
-            const x = invaderStartX + @as(f32, @floatFromInt(j)) * invaderSpacingX;
-            const y = invaderStartY + @as(f32, @floatFromInt(i)) * invaderSpacingY;
-            invader.* = Invader.init(x, y, invaderWidth, invaderHeight);
-        }
-    }
+    var invaders: [config.invaderGridRows][config.invaderGridCols]Invader = undefined;
+    initInvaders(&invaders, config);
 
     // 60 frames per second
     rl.setTargetFPS(60);
@@ -423,29 +565,29 @@ pub fn main() void {
         defer rl.endDrawing();
 
         rl.clearBackground(rl.Color.black);
-        
-        if (game_over) {
+
+        if (gameState.gameOver) {
             rl.drawText("GAME OVER", 270, 250, 40, rl.Color.red);
-            const score_text = rl.textFormat("Final Score %d", .{score});
+            const score_text = rl.textFormat("Final Score %d", .{gameState.score});
             rl.drawText(score_text, 285, 310, 30, rl.Color.white);
-            
+
             rl.drawText("PRESS ENTER to play again or ESC to quit", 180, 360, 20, rl.Color.green);
             if (rl.isKeyPressed(rl.KeyboardKey.enter)) {
-                game_over = false;
-                resetGame(&player, &bullets, &enemy_bullets, &shields, &invaders, &invader_direction, &score, &config);
+                gameState.gameOver = false;
+                resetGame(&player, &bullets, &enemy_bullets, &shields, &invaders, &gameState, &config);
             }
             continue;
         }
 
-        if (game_won) {
+        if (gameState.gameWon) {
             rl.drawText("YOU WIN", 320, 250, 40, rl.Color.gold);
-            const score_text = rl.textFormat("Final Score %d", .{score});
+            const score_text = rl.textFormat("Final Score %d", .{gameState.score});
             rl.drawText(score_text, 280, 310, 30, rl.Color.white);
-            
+
             rl.drawText("PRESS ENTER to play again or ESC to quit", 180, 360, 20, rl.Color.green);
             if (rl.isKeyPressed(rl.KeyboardKey.enter)) {
-                game_won = false;
-                resetGame(&player, &bullets, &enemy_bullets, &shields, &invaders, &invader_direction, &score, &config);
+                gameState.gameWon = false;
+                resetGame(&player, &bullets, &enemy_bullets, &shields, &invaders, &gameState, &config);
             }
             continue;
         }
@@ -477,13 +619,13 @@ pub fn main() void {
                             if (bullet.getRect().intersects(invader.getRect())) {
                                 invader.alive = false;
                                 bullet.active = false;
-                                score += 10;
+                                gameState.score += 10;
                                 break;
                             }
                         }
                     }
                 }
-                
+
                 for (&shields) |*shield| {
                     if (shield.health > 0) {
                         if (bullet.getRect().intersects(shield.getRect())) {
@@ -497,12 +639,11 @@ pub fn main() void {
         }
 
         for (&enemy_bullets) |*bullet| {
-            bullet.update(screenHeight);
+            bullet.update(config.screenHeight);
             if (bullet.active) {
                 if (bullet.getRect().intersects(player.getRect())) {
                     bullet.active = false;
-                    game_over = true;
-                    // rl.drawText("GAME OVER", 20, 20, 20, rl.Color.red);
+                    gameState.gameOver = true;
                 }
 
                 for (&shields) |*shield| {
@@ -514,15 +655,15 @@ pub fn main() void {
                         }
                     }
                 }
-
             }
         }
-        enemy_shoot_timer += 1;
-        if (enemy_shoot_timer >= enemyShootDelay) {
-            enemy_shoot_timer = 0;
+
+        gameState.enemyShootTimer += 1;
+        if (gameState.enemyShootTimer >= config.enemyShootDelay) {
+            gameState.enemyShootTimer = 0;
             for (&invaders) |*row| {
                 for (row) |*invader| {
-                    if (invader.alive and rl.getRandomValue(0, 100) < enemyShootChance) {
+                    if (invader.alive and rl.getRandomValue(0, 100) < config.enemyShootChance) {
                         for (&enemy_bullets) |*bullet| {
                             if (!bullet.active) {
                                 bullet.position_x = invader.position_x + invader.width / 2 - bullet.width / 2;
@@ -536,39 +677,37 @@ pub fn main() void {
             }
         }
 
-        move_timer += 1;
-        if (move_timer >= invaderMoveDelay) {
-            move_timer = 0;
+        gameState.moveTimer += 1;
+        if (gameState.moveTimer >= config.invaderMoveDelay) {
+            gameState.moveTimer = 0;
 
             var hit_edge = false;
 
             for (&invaders) |*row| {
                 for (row) |*invader| {
                     if (invader.alive) {
-                        // Check the next_x ()
-                        const next_x = invader.position_x + (invaderSpeed * invader_direction);
-                        if ((next_x < 0) or (next_x + invader.width) > @as(f32, @floatFromInt(screenWidth))) {
+                        const next_x = invader.position_x + (config.invaderSpeed * gameState.invaderDirection);
+                        if ((next_x < 0) or (next_x + invader.width) > @as(f32, @floatFromInt(config.screenWidth))) {
                             hit_edge = true;
                             break;
                         }
                     }
-                    // invader.update(invaderSpeed * invader_direction, 0);
                 }
                 if (hit_edge) {
                     break;
                 }
             }
             if (hit_edge) {
-                invader_direction *= -1.0;
+                gameState.invaderDirection *= -1.0;
                 for (&invaders) |*row| {
                     for (row) |*invader| {
-                        invader.update(0, invaderDropDistance);
+                        invader.update(0, config.invaderDropDistance);
                     }
                 }
             } else {
                 for (&invaders) |*row| {
                     for (row) |*invader| {
-                        invader.update(invaderSpeed * invader_direction, 0);
+                        invader.update(config.invaderSpeed * gameState.invaderDirection, 0);
                     }
                 }
             }
@@ -577,30 +716,15 @@ pub fn main() void {
                 for (row) |*invader| {
                     if (invader.alive) {
                         if (invader.getRect().intersects(player.getRect())) {
-                            game_won = false;
-                            game_over = true;
+                            gameState.gameWon = false;
+                            gameState.gameOver = true;
                         }
                     }
                 }
             }
         }
-        
 
-        var all_invaders_dead = true;
-        all_dead_lbl:
-        for (&invaders) |*row| {
-            for (row) |*invader| {
-                if (invader.alive) {
-                    all_invaders_dead = false;
-                    break :all_dead_lbl;
-                }
-            }
-        }
-
-        if (all_invaders_dead) {
-            // we won:
-            game_won = true;
-        }
+        gameState.gameWon = checkIfAllInvadersAreDead(&invaders);
 
         // Draw logic:
         for (&shields) |*shield| {
@@ -622,8 +746,8 @@ pub fn main() void {
             bullet.draw();
         }
 
-        const score_text = rl.textFormat("Score: %d", .{score});
-        rl.drawText(score_text, 20, screenHeight - 20, 20, rl.Color.white);
+        const score_text = rl.textFormat("Score: %d", .{gameState.score});
+        rl.drawText(score_text, 20, config.screenHeight - 20, 20, rl.Color.white);
         rl.drawText("Zig Invaders", 300, 250, 30, rl.Color.green);
         rl.drawText("Zig Invaders - SPACE to shoot, ESC to quit", 20, 20, 20, rl.Color.green);
     }
